@@ -3,7 +3,6 @@ package org.js.mvc.autumn.servlet;
 import org.js.mvc.autumn.annotation.*;
 
 import javax.servlet.ServletConfig;
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -19,9 +18,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Created by JiaShun on 2018/8/14.
+ * @author JiaShun
+ * @date 2018/8/14
  */
-
 public class DispatcherServlet extends HttpServlet {
 
     private Properties contextConfig = new Properties();
@@ -29,7 +28,10 @@ public class DispatcherServlet extends HttpServlet {
     private Map<String,Object> ioc = new HashMap<>();
     private List<Handler> handleMapping = new ArrayList<>();
 
-    //===========初始阶段=========
+    /**
+     * ===========初始阶段=========
+     * @param config
+     */
     @Override
     public void init(ServletConfig config) {
         //1：加载配置文件
@@ -78,7 +80,9 @@ public class DispatcherServlet extends HttpServlet {
             String value = Arrays.toString(param.getValue()).replaceAll("\\[","")
                     .replaceAll("\\]","").replaceAll(",\\s",",");
             //如果找到匹配的对象，则开始填充参数值
-            if(!handler.paramIndexMapping.containsKey(param.getKey()))continue;
+            if(!handler.paramIndexMapping.containsKey(param.getKey())) {
+                continue;
+            }
             int index = handler.paramIndexMapping.get(param.getKey());
             paramValues[index] = convert(paramTypes[index],value);
         }
@@ -94,10 +98,19 @@ public class DispatcherServlet extends HttpServlet {
      * Handler内部类:记录Controller中RequestMapping和Method的对应关系
      */
     private class Handler{
-        Object controller; //保存方法对应的实例
-        Method method; //保存映射的方法
+        /**
+         * 保存方法对应的实例
+         */
+        Object controller;
+        /**
+         * 保存映射的方法
+         */
+        Method method;
         Pattern pattern;
-        Map<String,Integer> paramIndexMapping; //参数顺序
+        /**
+         * 参数顺序
+         */
+        Map<String,Integer> paramIndexMapping;
         
         Handler(Pattern pattern,Object controller,Method method){
             this.controller = controller;
@@ -114,8 +127,9 @@ public class DispatcherServlet extends HttpServlet {
                 for(Annotation an : pa[i]){
                     if(an instanceof RequestParam){
                         String paramName = ((RequestParam) an).value();
-                        if(!"".equals(paramName.trim()))
+                        if(!"".equals(paramName.trim())) {
                             paramIndexMapping.put(paramName,i);
+                        }
                     }
                 }
             }
@@ -131,13 +145,17 @@ public class DispatcherServlet extends HttpServlet {
     }
 
     private Handler getHandler(HttpServletRequest req) {
-        if(handleMapping.isEmpty()) return null;
+        if(handleMapping.isEmpty()) {
+            return null;
+        }
         String uri = req.getRequestURI();
         String contextPath = req.getContextPath();
         uri = uri.replace(contextPath,"").replaceAll("/+","/");
         for(Handler handler :handleMapping){
             Matcher matcher = handler.pattern.matcher(uri);
-            if(!matcher.matches()) continue;
+            if(!matcher.matches()) {
+                continue;
+            }
             return handler;
         }
         return null;
@@ -157,10 +175,14 @@ public class DispatcherServlet extends HttpServlet {
      * 和请求url对应
      */
     private void initHandlerMapping() {
-        if(ioc.isEmpty()) return;
+        if(ioc.isEmpty()) {
+            return;
+        }
         for(Map.Entry<String,Object> entry : ioc.entrySet()){
             Class<?> clazz = entry.getValue().getClass();
-            if(!clazz.isAnnotationPresent(Controller.class))continue;
+            if(!clazz.isAnnotationPresent(Controller.class)) {
+                continue;
+            }
             String baseUrl = "";
             if(clazz.isAnnotationPresent(RequestMapping.class)){
                 RequestMapping requestMapping = clazz.getAnnotation(RequestMapping.class);
@@ -168,7 +190,9 @@ public class DispatcherServlet extends HttpServlet {
             }
             //Spring中只有public的方法才会被扫描到
             for(Method method : clazz.getMethods()){
-                if(!method.isAnnotationPresent(RequestMapping.class))continue;
+                if(!method.isAnnotationPresent(RequestMapping.class)) {
+                    continue;
+                }
                 RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
                 String regex = ("/" + baseUrl + "/" +  requestMapping.value()).replaceAll("/+" ,"/");
                 Pattern pattern = Pattern.compile(regex);
@@ -184,19 +208,27 @@ public class DispatcherServlet extends HttpServlet {
      * 如果有属性带有@Autowired注解，就将属性set注入
      */
     private void doAutowired() {
-        if(ioc.isEmpty()) return;
+        if(ioc.isEmpty()) {
+            return;
+        }
         for(Map.Entry<String,Object> entry : ioc.entrySet()){
             //获得IOC容器中Bean实例的所有属性
             Field[] fields = entry.getValue().getClass().getDeclaredFields();
-            if(fields.length == 0) continue;
+            if(fields.length == 0) {
+                continue;
+            }
             for(Field field : fields){
                 //只有带有@Autowired注解的才会DI
-                if(!field.isAnnotationPresent(Autowired.class)) continue;
+                if(!field.isAnnotationPresent(Autowired.class)) {
+                    continue;
+                }
                 Autowired autowired = field.getAnnotation(Autowired.class);
                 String beanName = autowired.value().trim();
-                if("".equals(beanName))
+                if("".equals(beanName)) {
                     beanName = field.getType().getName();
-                field.setAccessible(true);//强制授权
+                }
+                //强制授权
+                field.setAccessible(true);
                 try {
                     //将带有@Autowired注解的类的实例set进entry类中
                     field.set(entry.getValue(),ioc.get(beanName));
@@ -212,7 +244,9 @@ public class DispatcherServlet extends HttpServlet {
      * 所有带有@Controller和@Service注解的类
      */
     private void doInstance() {
-        if(classNames.isEmpty()) return;
+        if(classNames.isEmpty()) {
+            return;
+        }
         try{
             for(String className : classNames){
                 Class<?> clazz = Class.forName(className);
@@ -228,8 +262,9 @@ public class DispatcherServlet extends HttpServlet {
                     //3：key接口的type
                     Service service = clazz.getAnnotation(Service.class);
                     String beanName = service.value();
-                    if("".equals(beanName.trim()))
+                    if("".equals(beanName.trim())) {
                         beanName = lowerFirstCase(clazz.getSimpleName());
+                    }
                     Object instance = clazz.getConstructor().newInstance();
                     ioc.put(beanName,instance);
                     //实例化接口,key为接口名称，value为实现类
